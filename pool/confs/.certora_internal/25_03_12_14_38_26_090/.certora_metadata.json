@@ -1,0 +1,35 @@
+{
+    "CLI_package_name": "certora-cli",
+    "CLI_version": "7.25.3",
+    "branch": "certora",
+    "certora_ci_client": null,
+    "conf": {
+        "build_script": "../certora_build.py",
+        "loop_iter": "2",
+        "optimistic_loop": true,
+        "process": "emv",
+        "prover_version": "master",
+        "rule": [
+            "user_health_execute_submit",
+            "user_health_execute_submit_with_flash_loan",
+            "build_actions_from_request",
+            "handle_transfers_summary_ok",
+            "handle_transfer_with_allowance_summary_ok"
+        ],
+        "rule_sanity": "basic",
+        "server": "prover"
+    },
+    "conf_path": "pool/confs/health.conf",
+    "cwd_relative": "pool/confs",
+    "dirty": true,
+    "group_id": null,
+    "main_spec": null,
+    "origin": "git@github.com:Certora/blend-contracts-v2.git",
+    "python_version": "3.9.6",
+    "raw_args": [
+        "/Users/chandrakananandi/Library/Python/3.9/bin/certoraSorobanProver",
+        "health.conf"
+    ],
+    "revision": "996e09eda6ae6c87257e45f879a208a16bb975e2",
+    "timestamp": "1741815506.169677"
+}

@@ -1,17 +1,31 @@
 use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map};
 
-use crate::{constants::SCALAR_12, emissions, storage, validator::require_nonnegative, PoolError};
+use crate::{constants::SCALAR_12, storage, validator::require_nonnegative, PoolError};
 
 use super::{Pool, Reserve};
 
+#[cfg(feature = "certora")]
+use crate::spec::summaries::emissions as summaries;
+
+
 /// A user / contracts position's with the pool, stored in the Reserve's decimals
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[contracttype]
 pub struct Positions {
     pub liabilities: Map<u32, i128>, // Map of Reserve Index to liability share balance
     pub collateral: Map<u32, i128>,  // Map of Reserve Index to collateral supply share balance
     pub supply: Map<u32, i128>,      // Map of Reserve Index to non-collateral supply share balance
+}
+
+impl cvlr::nondet::Nondet for Positions {
+    fn nondet() -> Self {
+        Self {
+            liabilities: cvlr_soroban::nondet_map(),
+            collateral: cvlr_soroban::nondet_map(),
+            supply: cvlr_soroban::nondet_map(),
+        }
+    }
 }
 
 impl Positions {
@@ -34,10 +48,19 @@ impl Positions {
 }
 
 /// A user / contracts position's with the pool
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct User {
     pub address: Address,
     pub positions: Positions,
+}
+
+impl cvlr::nondet::Nondet for User {
+    fn nondet() -> Self {
+        Self {
+            address: cvlr_soroban::nondet_address(),
+            positions: cvlr::nondet(),
+        }
+    }
 }
 
 impl User {
@@ -71,10 +94,10 @@ impl User {
             panic_with_error!(e, PoolError::InvalidDTokenMintAmount)
         }
         let balance = self.get_liabilities(reserve.config.index);
+    
         self.update_d_emissions(e, reserve, balance);
-        self.positions
-            .liabilities
-            .set(reserve.config.index, balance + amount);
+
+        self.positions.liabilities.set(reserve.config.index, balance + amount);
         reserve.data.d_supply += amount;
     }
 
@@ -245,6 +268,16 @@ impl User {
     }
 
     fn update_d_emissions(&self, e: &Env, reserve: &Reserve, amount: i128) {
+        #[cfg(feature = "certora")]
+        summaries::update_emissions_summary(
+            e,
+            reserve.config.index * 2,
+            reserve.data.d_supply,
+            reserve.scalar,
+            &self.address,
+            amount,
+        );
+        #[cfg(not(feature = "certora"))]
         emissions::update_emissions(
             e,
             reserve.config.index * 2,
@@ -256,6 +289,16 @@ impl User {
     }
 
     fn update_b_emissions(&self, e: &Env, reserve: &Reserve, amount: i128) {
+        #[cfg(feature = "certora")]
+        summaries::update_emissions_summary(
+            e,
+            reserve.config.index * 2 + 1,
+            reserve.data.d_supply,
+            reserve.scalar,
+            &self.address,
+            amount,
+        );
+        #[cfg(not(feature = "certora"))]
         emissions::update_emissions(
             e,
             reserve.config.index * 2 + 1,

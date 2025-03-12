@@ -7,6 +7,7 @@ use crate::{
     errors::PoolError,
     pool::actions::RequestType,
     storage::{self, PoolConfig, ReserveConfig, ReserveData},
+    nondet_expr,
 };
 
 use super::interest::calc_accrual;
@@ -18,6 +19,17 @@ pub struct Reserve {
     pub config: ReserveConfig, // the reserve configuration
     pub data: ReserveData,     // the reserve data
     pub scalar: i128,
+}
+
+impl cvlr::nondet::Nondet for Reserve {
+    fn nondet() -> Self {
+        return Self {
+            asset: cvlr_soroban::nondet_address(),
+            config: cvlr::nondet(),
+            data: cvlr::nondet(),
+            scalar: cvlr::nondet(),
+        };
+    }
 }
 
 impl Reserve {
@@ -104,6 +116,10 @@ impl Reserve {
                 &self.data.b_supply,
                 &SCALAR_12,
             );
+
+            /*
+             ((data.b_supply * data.b_rate / SCALAR_12) + accrued - new_backstop_credit) * data.b_supply / SCALAR_12
+            */
         }
     }
 
@@ -115,7 +131,7 @@ impl Reserve {
 
     /// Require that the utilization rate is below the maximum allowed, or panic.
     pub fn require_utilization_below_max(&self, e: &Env) {
-        if self.utilization(e) > i128(self.config.max_util) {
+        if nondet_expr!(self.utilization(e)) > i128(self.config.max_util) {
             panic_with_error!(e, PoolError::InvalidUtilRate)
         }
     }
