@@ -1,3 +1,4 @@
+use cvlr::clog;
 use soroban_sdk::Env;
 
 use cvlr::asserts::{cvlr_assert, cvlr_assume};
@@ -73,8 +74,6 @@ pub fn verify_update_status_0_b(e: Env) {
     let status_after = execute_update_pool_status(&e);
 
     cvlr_assert!(unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_6000000 } || status_after == 5);
-
-    cvlr_assert!(status_after == 1);
 }
 
 #[rule]

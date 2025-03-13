@@ -30,7 +30,7 @@ pub fn execute_update_pool_status(e: &Env) -> u32 {
         met_threshold = false;
     }
 
-    // #[cfg(feature = "certora")]
+    #[cfg(feature = "certora")]
     unsafe { GHOST_MET_THRESHOLD = met_threshold };
 
     match pool_config.status {

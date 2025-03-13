@@ -116,10 +116,6 @@ impl Reserve {
                 &self.data.b_supply,
                 &SCALAR_12,
             );
-
-            /*
-             ((data.b_supply * data.b_rate / SCALAR_12) + accrued - new_backstop_credit) * data.b_supply / SCALAR_12
-            */
         }
     }
 
