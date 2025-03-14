@@ -8,6 +8,20 @@ use crate::pool::execute_update_pool_status;
 use crate::spec::{GHOST_MET_THRESHOLD, GHOST_POOL_BACKSTOP_DATA};
 use crate::{storage, PoolConfig};
 
+// after update status, the status can only be 1, 3, 5
+#[rule]
+pub fn verify_status_update(e: Env) {
+    let pool_config: PoolConfig = cvlr::nondet();
+
+    storage::set_pool_config(&e, &pool_config);
+
+    let status_after = execute_update_pool_status(&e);
+
+    clog!(status_after);
+
+    cvlr_assert!(status_after == 1 || status_after == 3 || status_after == 5);
+}
+
 #[rule]
 pub fn verify_update_status_6(e: Env) {
     let pool_config: PoolConfig = cvlr::nondet();
@@ -57,12 +71,20 @@ pub fn verify_update_status_0_a(e: Env) {
 
     let status_after = execute_update_pool_status(&e);
 
-    cvlr_assert!(
-        (unsafe { GHOST_MET_THRESHOLD } && unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_5000000 })
-            || status_after == 3
-    );
+    cvlr_assume!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_5000000} || unsafe { !GHOST_MET_THRESHOLD });
+
+    cvlr_assert!(status_after == 3);
 }
 
+/**
+ * NOTE that this rule is directly taken from
+ * the official documentation: https://docs.blend.capital/tech-docs/core-contracts/lending-pool/pool-management#permissionless-updates
+ * However, as you can see below,
+ * the documentation does not make sense because it is not possible
+ * for GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_5000000 and also >= 0_6000000.
+ * This rule will therefore always pass but it is vacuous.
+ * Please consider updating the official documentation.
+ */
 #[rule]
 pub fn verify_update_status_0_b(e: Env) {
     let pool_config: PoolConfig = cvlr::nondet();
@@ -73,14 +95,10 @@ pub fn verify_update_status_0_b(e: Env) {
 
     let status_after = execute_update_pool_status(&e);
 
-    // if (q4w >= 60 && !(q4w >= 50 || !met_threshold)) then status = 5
-    // !(q4w >= 60 && !(q4w >= 50 || !met_threshold)) || (status = 5)
-    // (q4w < 60 || (q4w >= 50 || !met_threshold)) || (status = 5)
-    // (q4w < 60 || q4w >= 50 || !met_threshold || (status = 5)
+    cvlr_assume!(!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_5000000} || unsafe { !GHOST_MET_THRESHOLD }));
+    cvlr_assume!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000});
 
-    cvlr_assert!(unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_6000000 } ||
-                 unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_5000000 } ||
-                 unsafe { !GHOST_MET_THRESHOLD } || status_after == 5);
+    cvlr_assert!(status_after == 5);
 }
 
 #[rule]
@@ -89,29 +107,15 @@ pub fn verify_update_status_0_c(e: Env) {
 
     cvlr_assume!(pool_config.status == 0);
 
-
     storage::set_pool_config(&e, &pool_config);
-
-    clog!(pool_config.status);
 
     let status_after = execute_update_pool_status(&e);
 
-    unsafe{
-        clog!(GHOST_MET_THRESHOLD);
-        clog!((GHOST_POOL_BACKSTOP_DATA.q4w_pct >> 64) as i64);
-        clog!(GHOST_POOL_BACKSTOP_DATA.q4w_pct as i64);
-    }
-    clog!(status_after);
+    cvlr_assume!(!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_5000000} || unsafe { !GHOST_MET_THRESHOLD }));
+    cvlr_assume!(!unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000});
+    cvlr_assume!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000} || unsafe { !GHOST_MET_THRESHOLD });
 
-    // if (!q4w >= 60 && !(q4w >= 50 || !met_threshold) && (q4w >= 30 || !met_threshold)) then status = 3
-    //   !(!q4w >= 60 && !(q4w >= 50 || !met_threshold) && (q4w >= 30 || !met_threshold)) || (status = 3)
-    //   !(q4w < 60   && q4w < 50 && met_threshold && (q4w >= 30 || !met_threshold)) || (status = 3)
-
-    cvlr_assert!(
-            !(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_6000000} &&
-              unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_5000000} &&
-              (unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000} || !unsafe {GHOST_MET_THRESHOLD}) &&
-              unsafe {GHOST_MET_THRESHOLD})|| status_after == 3);
+    cvlr_assert!(status_after == 3);
 }
 
 #[rule]
@@ -124,17 +128,11 @@ pub fn verify_update_status_0_d(e: Env) {
 
     let status_after = execute_update_pool_status(&e);
 
-    // if !(q4w >= 50% || !threshold_met) && !(q4w >= 60%) && !(q4w >= 30% || !threshold_met) then status = 1
+    cvlr_assume!(!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_5000000} || unsafe { !GHOST_MET_THRESHOLD }));
+    cvlr_assume!(!unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000});
+    cvlr_assume!(!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000} || unsafe { !GHOST_MET_THRESHOLD }));
 
-    // !(!(q4w >= 50% || !threshold_met) && !(q4w >= 60%) && !(q4w >= 30% || !threshold_met)) || status = 1
-
-    // !(q4w < 50 && q4w < 60 && q4w < 30 && threshold_met) || status = 1
-    
-    // !(threshold_met && q4w < 30) || status = 1
-
-    cvlr_assert!(
-        !(unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_3000000 } && unsafe { GHOST_MET_THRESHOLD }) || status_after == 1
-    );
+    cvlr_assert!(status_after == 1);
 }
 
 #[rule]
@@ -152,7 +150,9 @@ pub fn verify_update_status_other_a(e: Env) {
 
     let status_after = execute_update_pool_status(&e);
 
-    cvlr_assert!(unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_6000000 } || status_after == 5);
+    cvlr_assume!(unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000 });
+
+    cvlr_assert!(status_after == 5);
 }
 
 #[rule]
@@ -167,27 +167,13 @@ pub fn verify_update_status_other_b(e: Env) {
     );
 
     storage::set_pool_config(&e, &pool_config);
-    clog!(pool_config.status);
 
     let status_after = execute_update_pool_status(&e);
 
-    unsafe{
-        clog!(GHOST_MET_THRESHOLD);
-        clog!((GHOST_POOL_BACKSTOP_DATA.q4w_pct >> 64) as i64);
-        clog!(GHOST_POOL_BACKSTOP_DATA.q4w_pct as i64);
-    }
-    clog!(status_after);
+    cvlr_assume!(!unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000 });
+    cvlr_assume!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000} || unsafe { !GHOST_MET_THRESHOLD });
 
-    // if q4w < 60 && (q4w >= 30 || !met_threshold) then status = 3
-    // !(q4w < 60 && (q4w >= 30 || !met_threshold)) || (status = 3)
-    // (q4w >= 60 || !(q4w >= 30 || !met_threshold)) || (status = 3)
-    // (q4w >= 60 || (q4w < 30 && met_threshold)) || (status = 3)
-
-    cvlr_assert!(
-        ((unsafe { GHOST_MET_THRESHOLD } && unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct < 0_3000000 }) ||
-          unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000})
-            || status_after == 3
-    );
+    cvlr_assert!(status_after == 3);
 }
 
 #[rule]
@@ -205,16 +191,8 @@ pub fn verify_update_status_other_c(e: Env) {
 
     let status_after = execute_update_pool_status(&e);
 
-    // if !(q4w >= 60%) && !(q4w >= 30% || !threshold_met) then status = 1
-    // !(!(q4w >= 60%) && !(q4w >= 30% || !threshold_met)) ||  status = 1
-    // !(q4w < 60 && (q4w < 30 && threshold_met)) || status = 1
-    // (q4w >= 60 || !(q4w < 30 && threshold_met)) || status = 1
-    // (q4w >= 60 || q4w >= 30 || !threshold_met) || status = 1
+    cvlr_assume!(!unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000 });
+    cvlr_assume!(!(unsafe {GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000} || unsafe { !GHOST_MET_THRESHOLD }));
 
-    cvlr_assert!(
-        (unsafe { !GHOST_MET_THRESHOLD }
-            || unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_3000000 }
-            || unsafe { GHOST_POOL_BACKSTOP_DATA.q4w_pct >= 0_6000000 })
-            || status_after == 1
-    );
+    cvlr_assert!(status_after == 1);
 }
