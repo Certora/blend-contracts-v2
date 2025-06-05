@@ -8,7 +8,7 @@ use crate::pool::execute_update_pool_status;
 use crate::spec::{GHOST_MET_THRESHOLD, GHOST_POOL_BACKSTOP_DATA};
 use crate::{storage, PoolConfig};
 
-// after update status, the status can only be 1, 3, 5
+// after update status, the status can only be 0, 1, 2, 3, 5
 #[rule]
 pub fn verify_status_update(e: Env) {
     let pool_config: PoolConfig = cvlr::nondet();
@@ -19,7 +19,7 @@ pub fn verify_status_update(e: Env) {
 
     clog!(status_after);
 
-    cvlr_assert!(status_after == 1 || status_after == 3 || status_after == 5 || status_after == 0 || status_after == 2);
+    cvlr_assert!(status_after == 0 || status_after == 1 || status_after == 2 || status_after == 3 || status_after == 5);
 }
 
 #[rule]
